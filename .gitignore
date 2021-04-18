@@ -5,3 +5,5 @@ battlecode-scaffold.iws
 .classpath
 .project
 .settings/
+/.gradle/
+/build/
