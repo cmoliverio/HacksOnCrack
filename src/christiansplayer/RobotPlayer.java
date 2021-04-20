@@ -15,9 +15,9 @@ public strictfp class RobotPlayer {
         Direction.WEST,
         Direction.NORTHWEST
     };
-    
+
     static Stack<Direction> moves = new Stack<Direction>();
-    
+
     static RobotType[] spawnedByMiner = {RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
             RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN};
     static int minersBuilt = 0;
@@ -25,7 +25,7 @@ public strictfp class RobotPlayer {
     static int turnCount;
     static int soupRequirement = 75;
     static int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069}; //used to keep track of how many of each building/thing we have, 42069 used to distinguish our messages from the other team in the blockchain
-    static Transaction[] compareBlock;
+    //static Transaction[] compareBlock;
 
     /* Block-Chain Message Indexes of current knowledge - ID: 222
      * currentKnowledge [0] - # of net guns
@@ -34,17 +34,17 @@ public strictfp class RobotPlayer {
      * currentKnowledge [3] - # of
      * currentKnowledge [4] - # of 
      * currentKnowledge [5] - # of
-     * currentKnowledge [6] - # of 
+     * currentKnowledge [6] - code
      */
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
     /**
      * run() is the method that is called when a robot is instantiated in the Battlecode world.
      * If this method returns, the robot dies!
@@ -92,20 +92,20 @@ public strictfp class RobotPlayer {
     static void runHQ() throws GameActionException {
     	//tryBlockchain(gameStage);
     	//Transaction[] compareBlock = rc.getBlock(gameStage);  //If I uncomment this the code does basically nothing
-    	
+
     	//Blockchain Idea:
     	//At each stage check the block chain for messages with our code "42069" at the end (secret code is subject to change)
     	//If we have a match we then compare our currentKnowledge with the new block. If there are any differences we update our currentKnowledge, and continue on normally.
     	//This way all robots should always be on the same page
-    	
+
     	//Problems:
     	//It seems as though whenever we .getBlock the program freezes. 
-    	
-    	
+
+
     	//System.out.println(" Compare Block: " + compareBlock);
-    	
+
         for (Direction dir : directions) {
-        	if(minersBuilt <= 4 && tryBuild(RobotType.MINER, dir)) {
+        	if(minersBuilt <= 0 && tryBuild(RobotType.MINER, dir)) {
             	minersBuilt++;
             	//System.out.println("Current Block: " + rc.getBlock());
            }
@@ -113,35 +113,45 @@ public strictfp class RobotPlayer {
     }
 
     static void runMiner() throws GameActionException {
-    	
+
     	boolean foundSoup = false;
     	boolean hasRefined = false;
     	System.out.println("Im a miner:" + rc.getSoupCarrying());
-    	
-    	if(rc.getSoupCarrying() < soupRequirement) {
+
+    	if(rc.getSoupCarrying() < soupRequirement) {  //If we have less soup than required
     		for(Direction dir : directions) {
-        		if(tryMine(dir)) {
-        			foundSoup = true;
+        		if(tryMine(dir)) {       //Try to mine in all directions
+        			foundSoup = true;   //if we find soup, set foundSoup to true
         		}
         	}
     		if(foundSoup == false) {
-    			if(tryMove(randomDirection())){
+    			if(tryMove(randomDirection())){  //Otherwise move randomly
     				System.out.println("i moved");
+    				//System.out.println("Stack: " + moves.toString());
     			}
     		}
     	}
-    	
-    	for(Direction dir: directions) {
+
+    	for(Direction dir: directions) {    //Now try to refine in all directions
     		if (tryRefine(dir)) {
-    			moves.removeAllElements();
-    			hasRefined = true;
+    			moves.removeAllElements();  //If we can refine, empty the moves stack
+    			hasRefined = true; 
             	System.out.println("I refined soup! " + rc.getTeamSoup());
             }
     	}
-    	
-    	if(rc.getSoupCarrying() >= soupRequirement && !hasRefined) {
+
+    	if(rc.getSoupCarrying() >= soupRequirement && !hasRefined) {  //If the amount of soup we are carrying is more than the requirement, and we have not yet refined
+    		
+    		if(moves.size() == 0) {
+    			for(Direction dir: directions) {
+    	    		tryRefine(dir);
+    	    		System.out.println("Nothing in the stack");
+    			}
+    		}
+    		
+    		else { //look at our last move, and do the opposite. 
     		Direction previous_move = moves.pop();
-	        
+    		
     		if(previous_move == Direction.NORTH) {
     			tryMove(Direction.SOUTH);
     			moves.pop();
@@ -174,31 +184,33 @@ public strictfp class RobotPlayer {
     			tryMove(Direction.SOUTHWEST);
     			moves.pop();
     		}
-    	}
-    	
-    	
+    		
+  
+    	}}
+
+
     	//The goal here is to make 1 netgun total, however without the use of the blockchain, each miner makes 1 netgun themself
     	//In order to make only 1 netgun globally, we have to update the block chain so that all robots can also reflect this change
     	//This code here looks at the current amount of soup, and the current amount of net guns, then it makes one if one doesnt exist
-    	//However, I do not know how to then access this, and use it appropriately as when I uncomment getBlock(), it just stops the program
-    	
-    	if(rc.getTeamSoup() >= 300 && currentKnowledge[0] == 0) {	//if we have 250 soup (+50 for the cost to submit block), and 0 net guns
+    	//However, I do not know how to tproperly access the block chain, and use it appropriately as when I uncomment getBlock() aboe in the HQ, it just stops the program
+
+    	if(rc.getTeamSoup() >= 275 && currentKnowledge[0] == 0) {	//if we have 275 soup (+25 for the cost to submit block), and 0 net guns, currentKnowledge can be changed to <= 2 for example to make two
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.NET_GUN, dir)) {
-    				
     				currentKnowledge[0] = currentKnowledge[0] + 1; //adding 1 to the net gun section
-    				rc.submitTransaction(currentKnowledge ,1); //cost, message, ID - Letting everyone know to add 1 to netgun
-    				System.out.println("I submitted a transaction!: " + currentKnowledge);
+    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
+    	                rc.submitTransaction(currentKnowledge, 25);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
     			}
     		}
     	}
-    	
-    	
-    	
-    	
-    	
-    	
-    	
+
+
+
+
+
+
+
     	/**if(rc.getSoupCarrying() >= soupRequirement) {
     		if(moves.empty()) {
     			System.out.println("Im at the HQ!!!!!");
@@ -246,7 +258,7 @@ public strictfp class RobotPlayer {
     		}
     	}
 		*/
-    	
+
     	/**
     	if(foundSoup == false) {
     		if(tryMove(randomDirection())) {
@@ -421,9 +433,9 @@ public strictfp class RobotPlayer {
 
     static void tryBlockchain(int stage) throws GameActionException {
             int[] message = new int[7];
-            
-   
-            
+
+
+
             for (int i = 0; i < 7; i++) {
                 message[i] = 123;
             }
