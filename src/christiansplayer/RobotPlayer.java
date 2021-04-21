@@ -24,15 +24,15 @@ public strictfp class RobotPlayer {
     static int gameStage = 0;
     static int turnCount;
     static int soupRequirement = 75;
-    static int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069}; //used to keep track of how many of each building/thing we have, 42069 used to distinguish our messages from the other team in the blockchain
+    //static int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069}; //used to keep track of how many of each building/thing we have, 42069 used to distinguish our messages from the other team in the blockchain
     //static Transaction[] compareBlock;
 
     /* Block-Chain Message Indexes of current knowledge - ID: 222
      * currentKnowledge [0] - # of net guns
-     * currentKnowledge [1] - # of 
-     * currentKnowledge [2] - # of 
-     * currentKnowledge [3] - # of
-     * currentKnowledge [4] - # of 
+     * currentKnowledge [1] - # of refineries 
+     * currentKnowledge [2] - # of vaporators
+     * currentKnowledge [3] - # of design schools
+     * currentKnowledge [4] - # of fulfilment centers
      * currentKnowledge [5] - # of
      * currentKnowledge [6] - code
      */
@@ -105,7 +105,7 @@ public strictfp class RobotPlayer {
     	//System.out.println(" Compare Block: " + compareBlock);
 
         for (Direction dir : directions) {
-        	if(minersBuilt <= 0 && tryBuild(RobotType.MINER, dir)) {
+        	if(minersBuilt <= 4 && tryBuild(RobotType.MINER, dir)) {
             	minersBuilt++;
             	//System.out.println("Current Block: " + rc.getBlock());
            }
@@ -116,6 +116,11 @@ public strictfp class RobotPlayer {
 
     	boolean foundSoup = false;
     	boolean hasRefined = false;
+    	int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069};
+    	//Transaction[] compareBlock = rc.getBlock(gameStage); need to 
+    	
+    	//we need to then update current knowledge with the info from the transaction (only if it has the secret code in the last index of the message)
+    	
     	System.out.println("Im a miner:" + rc.getSoupCarrying());
 
     	if(rc.getSoupCarrying() < soupRequirement) {  //If we have less soup than required
@@ -205,12 +210,55 @@ public strictfp class RobotPlayer {
     		}
     	}
 
+    	/*
+    	if(rc.getTeamSoup() >= 225 && currentKnowledge[1] == 0) {	//if we have 225 soup (+25 for the cost to submit block), and 0 refineries, 
+    		for (Direction dir : directions) {
+    			if(tryBuild(RobotType.REFINERY, dir)) {
+    				currentKnowledge[1] = currentKnowledge[1] + 1; //adding 1 to the refinery section
+    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
+    	                rc.submitTransaction(currentKnowledge, 25);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
+    			}
+    		}
+    	}
 
+		//vaporator
+    	if(rc.getTeamSoup() >= 525 && currentKnowledge[2] == 0) {
+    		for (Direction dir : directions) {
+    			if(tryBuild(RobotType.VAPORATOR, dir)) {
+    				currentKnowledge[2] = currentKnowledge[2] + 1; //adding 1 to the net vaporator
+    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
+    	                rc.submitTransaction(currentKnowledge, 25);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
+    			}
+    		}
+    	}
 
+		//
+    	if(rc.getTeamSoup() >= 175 && currentKnowledge[3] == 0) {	//150 for school + 25 for transactoin fee (maybe we should wait til we have more soup?)
+    		for (Direction dir : directions) {
+    			if(tryBuild(RobotType.DESIGN_SCHOOL, dir)) {
+    				currentKnowledge[3] = currentKnowledge[3] + 1; //adding 1 to the design school section
+    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
+    	                rc.submitTransaction(currentKnowledge, 25);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
+    			}
+    		}
+    	}
+    	
+    	    	if(rc.getTeamSoup() >= 175 && currentKnowledge[4] == 0) {	
+    		for (Direction dir : directions) {
+    			if(tryBuild(RobotType.FULFILLMENT_CENTER, dir)) {
+    				currentKnowledge[4] = currentKnowledge[4] + 1; //adding 1 to the fulfilmnent center section
+    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
+    	                rc.submitTransaction(currentKnowledge, 25);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
+    			}
+    		}
+    	}
+    	
 
-
-
-
+    	 */
     	/**if(rc.getSoupCarrying() >= soupRequirement) {
     		if(moves.empty()) {
     			System.out.println("Im at the HQ!!!!!");
