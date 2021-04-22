@@ -148,10 +148,14 @@ public strictfp class RobotPlayer {
 
     	if(rc.getSoupCarrying() >= soupRequirement && !hasRefined) {  //If the amount of soup we are carrying is more than the requirement, and we have not yet refined
     		
-    		if(moves.size() == 0) {
+    		if(moves.size() == 0) { //If there is nothing in the stack
+    		
+				if(tryMove(randomDirection())){
+    	    		System.out.println("i'm lost, but I moved");
+    			}
+				
     			for(Direction dir: directions) {
-    	    		tryRefine(dir);
-    	    		System.out.println("Nothing in the stack");
+    				tryRefine(dir);
     			}
     		}
     		
