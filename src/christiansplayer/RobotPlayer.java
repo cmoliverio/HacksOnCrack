@@ -24,6 +24,7 @@ public strictfp class RobotPlayer {
     static int gameStage = 0;
     static int turnCount;
     static int soupRequirement = 75;
+    static int blockChainBid = 25;
     //static int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069}; //used to keep track of how many of each building/thing we have, 42069 used to distinguish our messages from the other team in the blockchain
     //static Transaction[] compareBlock;
 
@@ -199,59 +200,59 @@ public strictfp class RobotPlayer {
     	//This code here looks at the current amount of soup, and the current amount of net guns, then it makes one if one doesnt exist
     	//However, I do not know how to tproperly access the block chain, and use it appropriately as when I uncomment getBlock() aboe in the HQ, it just stops the program
 
-    	if(rc.getTeamSoup() >= 275 && currentKnowledge[0] == 0) {	//if we have 275 soup (+25 for the cost to submit block), and 0 net guns, currentKnowledge can be changed to <= 2 for example to make two
+    	if(rc.getTeamSoup() >= (250 + blockChainBid) && currentKnowledge[0] == 0) {	//if we have 275 soup (+25 for the cost to submit block), and 0 net guns, currentKnowledge can be changed to <= 2 for example to make two
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.NET_GUN, dir)) {
     				currentKnowledge[0] = currentKnowledge[0] + 1; //adding 1 to the net gun section
-    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
-    	                rc.submitTransaction(currentKnowledge, 25);
+    	            if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
+    	                rc.submitTransaction(currentKnowledge, blockChainBid);
     				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
     			}
     		}
     	}
 
     	/*
-    	if(rc.getTeamSoup() >= 225 && currentKnowledge[1] == 0) {	//if we have 225 soup (+25 for the cost to submit block), and 0 refineries, 
+    	if(rc.getTeamSoup() >= (200 + blockChainBid) && currentKnowledge[1] == 0) {	//if we have 200 soup (+blockChainBid for the cost to submit block), and 0 refineries
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.REFINERY, dir)) {
     				currentKnowledge[1] = currentKnowledge[1] + 1; //adding 1 to the refinery section
-    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
-    	                rc.submitTransaction(currentKnowledge, 25);
-    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
+    	            if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
+    	                rc.submitTransaction(currentKnowledge, blockChainBid);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain
     			}
     		}
     	}
 
 		//vaporator
-    	if(rc.getTeamSoup() >= 525 && currentKnowledge[2] == 0) {
+    	if(rc.getTeamSoup() >= (500 + blockChainBid) && currentKnowledge[2] == 0) {
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.VAPORATOR, dir)) {
     				currentKnowledge[2] = currentKnowledge[2] + 1; //adding 1 to the net vaporator
-    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
-    	                rc.submitTransaction(currentKnowledge, 25);
+    	            if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
+    	                rc.submitTransaction(currentKnowledge, blockChainBid);
     				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
     			}
     		}
     	}
 
 		//
-    	if(rc.getTeamSoup() >= 175 && currentKnowledge[3] == 0) {	//150 for school + 25 for transactoin fee (maybe we should wait til we have more soup?)
+    	if(rc.getTeamSoup() >= (150 + blockChainBid) && currentKnowledge[3] == 0) {	//150 for school + blockChainBid for transactoin fee
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.DESIGN_SCHOOL, dir)) {
     				currentKnowledge[3] = currentKnowledge[3] + 1; //adding 1 to the design school section
-    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
-    	                rc.submitTransaction(currentKnowledge, 25);
-    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
+    	            if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
+    	                rc.submitTransaction(currentKnowledge, blockChainBid);
+    				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain
     			}
     		}
     	}
     	
-    	    	if(rc.getTeamSoup() >= 175 && currentKnowledge[4] == 0) {	
+    	    	if(rc.getTeamSoup() >= (150 + blockChainBid) && currentKnowledge[4] == 0) {	
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.FULFILLMENT_CENTER, dir)) {
     				currentKnowledge[4] = currentKnowledge[4] + 1; //adding 1 to the fulfilmnent center section
-    	            if (rc.canSubmitTransaction(currentKnowledge, 25))
-    	                rc.submitTransaction(currentKnowledge, 25);
+    	            if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
+    	                rc.submitTransaction(currentKnowledge, blockChainBid);
     				System.out.println("I submitted a transaction!: " + currentKnowledge); //this adds the array to the blockchain, I just need to figure out how to get it
     			}
     		}
@@ -348,6 +349,7 @@ public strictfp class RobotPlayer {
     }
 
     static void runVaporator() throws GameActionException {
+    	
     	System.out.println("OH MY GOSH IM A VAPORATOR;");
     }
 
