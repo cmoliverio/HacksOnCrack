@@ -25,8 +25,9 @@ public strictfp class RobotPlayer {
     static int turnCount;
     static int soupRequirement = 75;
     static int blockChainBid = 25;
+    static int code = 42069;
+	static int[] currentKnowledge = {0,0,0,0,0,0,42069};
     //static int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069}; //used to keep track of how many of each building/thing we have, 42069 used to distinguish our messages from the other team in the blockchain
-    //static Transaction[] compareBlock;
 
     /* Block-Chain Message Indexes of current knowledge - ID: 222
      * currentKnowledge [0] - # of net guns
@@ -37,13 +38,6 @@ public strictfp class RobotPlayer {
      * currentKnowledge [5] - # of
      * currentKnowledge [6] - code
      */
-
-
-
-
-
-
-
 
 
     /**
@@ -117,12 +111,34 @@ public strictfp class RobotPlayer {
 
     	boolean foundSoup = false;
     	boolean hasRefined = false;
-    	int[] currentKnowledge = new int[]{0,0,0,0,0,0,42069};
-    	//Transaction[] compareBlock = rc.getBlock(gameStage); need to 
+    	int[] holder = new int[7];
+    	int round = rc.getRoundNum();
+    	
+    	//turn count needs to be global, right now it is local to each miner
+    	if(round > 2) {
+    		Transaction[] compareBlock = rc.getBlock(round - 1); // returns a list of transactions approved last round
+    		
+    		if(compareBlock.length > 0) { //if there are transactions in the block
+    			
+    			System.out.println("Round: " + round);
+    			System.out.println("compareBlock: " + compareBlock[0].getMessage());
+    			
+    			for(int x = 0; x <= compareBlock.length ; x++) {
+    				if (compareBlock[x].getMessage()[6] == code) {
+    					for(int n = 0; n < 7; n++) {
+    						currentKnowledge[n] = compareBlock[x].getMessage()[n];
+    					}
+    				}
+    			}
+    		}
+    	}
+    	
+
     	
     	//we need to then update current knowledge with the info from the transaction (only if it has the secret code in the last index of the message)
     	
     	System.out.println("Im a miner:" + rc.getSoupCarrying());
+    	System.out.println("Turn count: " + turnCount);
 
     	if(rc.getSoupCarrying() < soupRequirement) {  //If we have less soup than required
     		for(Direction dir : directions) {
@@ -150,13 +166,14 @@ public strictfp class RobotPlayer {
     		
     		if(moves.size() == 0) { //If there is nothing in the stack
     		
+    			for(Direction dir: directions) {
+    				tryRefine(dir);
+    			}
+    			
 				if(tryMove(randomDirection())){
     	    		System.out.println("i'm lost, but I moved");
     			}
 				
-    			for(Direction dir: directions) {
-    				tryRefine(dir);
-    			}
     		}
     		
     		else { //look at our last move, and do the opposite. 
@@ -215,7 +232,7 @@ public strictfp class RobotPlayer {
     		}
     	}
 
-    	/*
+    	
     	if(rc.getTeamSoup() >= (200 + blockChainBid) && currentKnowledge[1] == 0) {	//if we have 200 soup (+blockChainBid for the cost to submit block), and 0 refineries
     		for (Direction dir : directions) {
     			if(tryBuild(RobotType.REFINERY, dir)) {
@@ -263,7 +280,7 @@ public strictfp class RobotPlayer {
     	}
     	
 
-    	 */
+    	 
     	/**if(rc.getSoupCarrying() >= soupRequirement) {
     		if(moves.empty()) {
     			System.out.println("Im at the HQ!!!!!");
