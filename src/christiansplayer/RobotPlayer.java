@@ -10,9 +10,8 @@ public strictfp class RobotPlayer {
 	static Direction[] directions = { Direction.NORTH, Direction.NORTHEAST, Direction.EAST, Direction.SOUTHEAST,
 			Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
 
-	static Stack<Direction> moves = new Stack<Direction>();
 	static Random oracle = new Random();
-	
+
 	static MapLocation hqLocation;
 
 	static RobotType[] spawnedByMiner = { RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
@@ -121,7 +120,7 @@ public strictfp class RobotPlayer {
 		// System.out.println(" Compare Block: " + compareBlock);
 
 		for (Direction dir : directions) {
-			if (minersBuilt < 1 && tryBuild(RobotType.MINER, dir)) {
+			if (minersBuilt < 5 && tryBuild(RobotType.MINER, dir)) {
 				minersBuilt++;
 				// System.out.println("Current Block: " + rc.getBlock());
 			}
@@ -172,138 +171,126 @@ public strictfp class RobotPlayer {
 		}
 		return false;
 	}
-	
+
 	static void findHQ() {
 		RobotInfo[] info = rc.senseNearbyRobots();
-		for(RobotInfo robot: info) {
-			if(robot.type == RobotType.HQ && robot.team == rc.getTeam()) {
+		for (RobotInfo robot : info) {
+			if (robot.type == RobotType.HQ && robot.team == rc.getTeam()) {
 				hqLocation = robot.getLocation();
 			}
 		}
 	}
 
+	static void mineAllDirections() throws GameActionException {
+		// if we are carrying 75 soup or more try refining
+		if (rc.getSoupCarrying() < (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
+			for (Direction dir : directions) {
+				tryMine(dir);
+			}
+		}
+	}
+
+	static void refineAllDirections() throws GameActionException {
+		if (rc.getLocation().distanceSquaredTo(hqLocation) <= 2) {
+			for (Direction dir : directions) {
+				tryRefine(dir);
+			}
+		}
+	}
+
 	static void runMiner() throws GameActionException {
-		
-		if(hqLocation == null) {
+
+		// find HQ in beginning
+		if (hqLocation == null) {
 			findHQ();
 		}
+		
+		System.out.println("Carrying " + rc.getSoupCarrying() + " soup.");
 
-		boolean foundSoup = false;
-		boolean hasRefined = false;
-		int[] holder = new int[7];
-		int round = rc.getRoundNum();
-
-		/**
-		// turn count needs to be global, right now it is local to each miner
-		if (round > 2) {
-			Transaction[] compareBlock = rc.getBlock(round - 1); // returns a list of transactions approved last round
-
-			if (compareBlock.length > 0) { // if there are transactions in the block
-
-				System.out.println("Round: " + round);
-				System.out.println("compareBlock: " + compareBlock[0].getMessage());
-
-				for (int x = 0; x <= compareBlock.length; x++) {
-					if (compareBlock[x].getMessage()[6] == code) {
-						for (int n = 0; n < 7; n++) {
-							currentKnowledge[n] = compareBlock[x].getMessage()[n];
-						}
+		// Runs back towards HQ when amount of soup is large.
+		if (rc.getSoupCarrying() >= (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
+			Direction toHQ = rc.getLocation().directionTo(hqLocation);
+			if (rc.canMove(toHQ)) {
+				rc.move(toHQ);
+			} else {
+				System.out.println("I cant move towards the HQ");
+			}
+			refineAllDirections();
+		} else {
+			// Otherwise look for more soup
+			int closestSoupDistance = Integer.MAX_VALUE;
+			MapLocation closestSoupLocation = null;
+			MapLocation[] soups = rc.senseNearbySoup();
+			if (soups.length > 0) {
+				for (MapLocation soup : soups) {
+					int distanceToSoup = rc.getLocation().distanceSquaredTo(soup);
+					if (distanceToSoup < closestSoupDistance) {
+						closestSoupDistance = distanceToSoup;
+						closestSoupLocation = soup;
 					}
 				}
-			}
-		}
-		**/
+				
+				Direction toSoup = rc.getLocation().directionTo(closestSoupLocation);
 
-		// we need to then update current knowledge with the info from the transaction
-		// (only if it has the secret code in the last index of the message)
-
-		//System.out.println("Im a miner:" + rc.getSoupCarrying());
-		//System.out.println("Turn count: " + turnCount);
-		
-		
-		
-		//MapLocation rclocation = rc.getLocation();
-		//System.out.println(rclocation.directionTo(rc.getLocation().translate(2, 1)));
-
-		if (rc.getSoupCarrying() < soupRequirement) { // If we have less soup than required
-			for (Direction dir : directions) {
-				if (tryMine(dir)) { // Try to mine in all directions
-					foundSoup = true; // if we find soup, set foundSoup to true
+				if (rc.canMove(toSoup)) {
+					rc.move(toSoup);
+				} else {
+					System.out.println("I cant move towards the SOUP");
 				}
 			}
-			if (foundSoup == false) {
-				if (tryMove(randomDirection())) { // Otherwise move randomly
-					System.out.println("i moved");
-					// System.out.println("Stack: " + moves.toString());
-				}
-			}
+			mineAllDirections();
 		}
 
-		for (Direction dir : directions) { // Now try to refine in all directions
-			if (tryRefine(dir)) {
-				moves.removeAllElements(); // If we can refine, empty the moves stack
-				hasRefined = true;
-				System.out.println("I refined soup! " + rc.getTeamSoup());
-			}
-		}
-
-		if (rc.getSoupCarrying() >= soupRequirement && !hasRefined) { // If the amount of soup we are carrying is more
-																		// than the requirement, and we have not yet
-																		// refined
-
-			if (moves.size() == 0) { // If there is nothing in the stack
-
-				for (Direction dir : directions) {
-					tryRefine(dir);
-				}
-
-				if (tryMove(randomDirection())) {
-					System.out.println("i'm lost, but I moved");
-				}
-
-			}
-
-			else { // look at our last move, and do the opposite.
-				Direction previous_move = moves.pop();
-
-				if (previous_move == Direction.NORTH) {
-					tryMove(Direction.SOUTH);
-					moves.pop();
-				}
-				if (previous_move == Direction.SOUTH) {
-					tryMove(Direction.NORTH);
-					moves.pop();
-				}
-				if (previous_move == Direction.EAST) {
-					tryMove(Direction.WEST);
-					moves.pop();
-				}
-				if (previous_move == Direction.WEST) {
-					tryMove(Direction.EAST);
-					moves.pop();
-				}
-				if (previous_move == Direction.NORTHWEST) {
-					tryMove(Direction.SOUTHEAST);
-					moves.pop();
-				}
-				if (previous_move == Direction.SOUTHEAST) {
-					tryMove(Direction.NORTHWEST);
-					moves.pop();
-				}
-				if (previous_move == Direction.SOUTHWEST) {
-					tryMove(Direction.NORTHEAST);
-					moves.pop();
-				}
-				if (previous_move == Direction.NORTHEAST) {
-					tryMove(Direction.SOUTHWEST);
-					moves.pop();
-				}
-
-			}
-		}
-
-		purchaseBuilding(RobotType.NET_GUN, 250);
-		purchaseBuilding(RobotType.REFINERY, 200);
+		/**
+		 * System.out.println(hqLocation);
+		 * 
+		 * boolean foundSoup = false; boolean hasRefined = false; int[] holder = new
+		 * int[7]; int round = rc.getRoundNum();
+		 * 
+		 * /** // turn count needs to be global, right now it is local to each miner if
+		 * (round > 2) { Transaction[] compareBlock = rc.getBlock(round - 1); // returns
+		 * a list of transactions approved last round
+		 * 
+		 * if (compareBlock.length > 0) { // if there are transactions in the block
+		 * 
+		 * System.out.println("Round: " + round); System.out.println("compareBlock: " +
+		 * compareBlock[0].getMessage());
+		 * 
+		 * for (int x = 0; x <= compareBlock.length; x++) { if
+		 * (compareBlock[x].getMessage()[6] == code) { for (int n = 0; n < 7; n++) {
+		 * currentKnowledge[n] = compareBlock[x].getMessage()[n]; } } } } }
+		 * 
+		 * 
+		 * // we need to then update current knowledge with the info from the
+		 * transaction // (only if it has the secret code in the last index of the
+		 * message)
+		 * 
+		 * //System.out.println("Im a miner:" + rc.getSoupCarrying());
+		 * //System.out.println("Turn count: " + turnCount);
+		 * 
+		 * 
+		 * 
+		 * //MapLocation rclocation = rc.getLocation();
+		 * //System.out.println(rclocation.directionTo(rc.getLocation().translate(2,
+		 * 1)));
+		 * 
+		 * if (rc.getSoupCarrying() < soupRequirement) { // If we have less soup than
+		 * required for (Direction dir : directions) { if (tryMine(dir)) { // Try to
+		 * mine in all directions foundSoup = true; // if we find soup, set foundSoup to
+		 * true } } if (foundSoup == false) { if (tryMove(randomDirection())) { //
+		 * Otherwise move randomly System.out.println("i moved"); //
+		 * System.out.println("Stack: " + moves.toString()); } } }
+		 * 
+		 * for (Direction dir : directions) { // Now try to refine in all directions if
+		 * (tryRefine(dir)) { moves.removeAllElements(); // If we can refine, empty the
+		 * moves stack hasRefined = true; System.out.println("I refined soup! " +
+		 * rc.getTeamSoup()); } }
+		 * 
+		 * 
+		 * 
+		 * purchaseBuilding(RobotType.NET_GUN, 250);
+		 * purchaseBuilding(RobotType.REFINERY, 200);
+		 **/
 
 		// The goal here is to make 1 netgun total, however without the use of the
 		// blockchain, each miner makes 1 netgun themself
@@ -493,7 +480,6 @@ public strictfp class RobotPlayer {
 		// rc.getCooldownTurns() + " " + rc.canMove(dir));
 		if (rc.isReady() && rc.canMove(dir)) {
 			rc.move(dir);
-			moves.push(dir);
 			return true;
 		} else
 			return false;
