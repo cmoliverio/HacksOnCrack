@@ -181,13 +181,15 @@ public strictfp class RobotPlayer {
 		}
 	}
 
-	static void mineAllDirections() throws GameActionException {
+	static boolean mineAllDirections() throws GameActionException {
 		// if we are carrying 75 soup or more try refining
+		boolean didRefine = false;
 		if (rc.getSoupCarrying() < (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
 			for (Direction dir : directions) {
-				tryMine(dir);
+				didRefine = didRefine || tryMine(dir);
 			}
 		}
+		return didRefine;
 	}
 
 	static void refineAllDirections() throws GameActionException {
@@ -198,47 +200,57 @@ public strictfp class RobotPlayer {
 		}
 	}
 
+	static void moveTowardsHQ() throws GameActionException {
+		Direction toHQ = rc.getLocation().directionTo(hqLocation);
+		if (rc.canMove(toHQ)) {
+			rc.move(toHQ);
+		} else {
+			tryMove(randomDirection());
+		}
+	}
+
+	static void moveTowardsSoup() throws GameActionException {
+		int closestSoupDistance = Integer.MAX_VALUE;
+		MapLocation closestSoupLocation = null;
+		MapLocation[] soups = rc.senseNearbySoup();
+		if (soups.length > 0) {
+			for (MapLocation soup : soups) {
+				int distanceToSoup = rc.getLocation().distanceSquaredTo(soup);
+				if (distanceToSoup < closestSoupDistance) {
+					closestSoupDistance = distanceToSoup;
+					closestSoupLocation = soup;
+				}
+			}
+
+			Direction toSoup = rc.getLocation().directionTo(closestSoupLocation);
+
+			if (rc.canMove(toSoup)) {
+				rc.move(toSoup);
+			} else {
+				tryMove(randomDirection());
+			}
+		}
+	}
+
 	static void runMiner() throws GameActionException {
 
 		// find HQ in beginning
 		if (hqLocation == null) {
 			findHQ();
 		}
-		
+
 		System.out.println("Carrying " + rc.getSoupCarrying() + " soup.");
 
 		// Runs back towards HQ when amount of soup is large.
 		if (rc.getSoupCarrying() >= (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
-			Direction toHQ = rc.getLocation().directionTo(hqLocation);
-			if (rc.canMove(toHQ)) {
-				rc.move(toHQ);
-			} else {
-				System.out.println("I cant move towards the HQ");
-			}
+			moveTowardsHQ();
 			refineAllDirections();
 		} else {
 			// Otherwise look for more soup
-			int closestSoupDistance = Integer.MAX_VALUE;
-			MapLocation closestSoupLocation = null;
-			MapLocation[] soups = rc.senseNearbySoup();
-			if (soups.length > 0) {
-				for (MapLocation soup : soups) {
-					int distanceToSoup = rc.getLocation().distanceSquaredTo(soup);
-					if (distanceToSoup < closestSoupDistance) {
-						closestSoupDistance = distanceToSoup;
-						closestSoupLocation = soup;
-					}
-				}
-				
-				Direction toSoup = rc.getLocation().directionTo(closestSoupLocation);
-
-				if (rc.canMove(toSoup)) {
-					rc.move(toSoup);
-				} else {
-					System.out.println("I cant move towards the SOUP");
-				}
+			boolean didRefine = mineAllDirections();
+			if (!didRefine) {
+				moveTowardsSoup();
 			}
-			mineAllDirections();
 		}
 
 		/**
@@ -457,15 +469,6 @@ public strictfp class RobotPlayer {
 			if (tryMove(dir))
 				return true;
 		return false;
-		// MapLocation loc = rc.getLocation();
-		// if (loc.x < 10 && loc.x < loc.y)
-		// return tryMove(Direction.EAST);
-		// else if (loc.x < 10)
-		// return tryMove(Direction.SOUTH);
-		// else if (loc.x > loc.y)
-		// return tryMove(Direction.WEST);
-		// else
-		// return tryMove(Direction.NORTH);
 	}
 
 	/**
@@ -476,8 +479,6 @@ public strictfp class RobotPlayer {
 	 * @throws GameActionException
 	 */
 	static boolean tryMove(Direction dir) throws GameActionException {
-		// System.out.println("I am trying to move " + dir + "; " + rc.isReady() + " " +
-		// rc.getCooldownTurns() + " " + rc.canMove(dir));
 		if (rc.isReady() && rc.canMove(dir)) {
 			rc.move(dir);
 			return true;
