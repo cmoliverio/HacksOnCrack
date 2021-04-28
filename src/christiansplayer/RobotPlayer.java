@@ -1,6 +1,7 @@
 package christiansplayer;
 
 import java.util.Stack;
+import java.util.HashMap;
 import java.util.Random;
 import battlecode.common.*;
 
@@ -10,9 +11,12 @@ public strictfp class RobotPlayer {
 	static Direction[] directions = { Direction.NORTH, Direction.NORTHEAST, Direction.EAST, Direction.SOUTHEAST,
 			Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
 
+	static HashMap<MapLocation, MapLocation> visited = new HashMap<MapLocation, MapLocation>();
 	static Random oracle = new Random();
 
 	static MapLocation hqLocation;
+	static boolean designSchoolBuilt = false;
+	static boolean fulfillmentCenterBuilt = false;
 
 	static RobotType[] spawnedByMiner = { RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
 			RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN };
@@ -115,12 +119,17 @@ public strictfp class RobotPlayer {
 		// This way all robots should always be on the same page
 
 		// Problems:
-		// It seems as though whenever we .getBlock the program freezes.
+		// It seems as though whenever we s.getBlock the program freezes.
 
 		// System.out.println(" Compare Block: " + compareBlock);
 
+		// Number of miners will be determined by amount of soup that is close by.
+		MapLocation[] soups = rc.senseNearbySoup();
+
+		int ratio_of_miners_to_sensed_soup = (int) (soups.length * 1.5);
+
 		for (Direction dir : directions) {
-			if (minersBuilt < 5 && tryBuild(RobotType.MINER, dir)) {
+			if (minersBuilt < ratio_of_miners_to_sensed_soup && tryBuild(RobotType.MINER, dir)) {
 				minersBuilt++;
 				// System.out.println("Current Block: " + rc.getBlock());
 			}
@@ -200,12 +209,13 @@ public strictfp class RobotPlayer {
 		}
 	}
 
+	// Finds best move that goes towards the or closest refinery
 	static void moveTowardsHQ() throws GameActionException {
 		Direction toHQ = rc.getLocation().directionTo(hqLocation);
-		if (rc.canMove(toHQ)) {
-			rc.move(toHQ);
+		if (tryMove(toHQ)) {
+			System.out.println("I moved towards the HQ");
 		} else {
-			tryMove(randomDirection());
+			tryMove(toHQ.rotateRight());
 		}
 	}
 
@@ -213,7 +223,10 @@ public strictfp class RobotPlayer {
 		int closestSoupDistance = Integer.MAX_VALUE;
 		MapLocation closestSoupLocation = null;
 		MapLocation[] soups = rc.senseNearbySoup();
+
+		// When we find soup around try to move towards it
 		if (soups.length > 0) {
+			// Finds the closest soup out of all the soups we sense
 			for (MapLocation soup : soups) {
 				int distanceToSoup = rc.getLocation().distanceSquaredTo(soup);
 				if (distanceToSoup < closestSoupDistance) {
@@ -224,10 +237,90 @@ public strictfp class RobotPlayer {
 
 			Direction toSoup = rc.getLocation().directionTo(closestSoupLocation);
 
+			// Move in fastest direction to the closest soup
+			/*
+			 * boolean didMove = tryMove(toSoup); for(int i = 0; i < 8; i++) { if(didMove ==
+			 * false) { toSoup.rotateLeft(); didMove = tryMove(toSoup); } }
+			 */
+			// if(tryMove(toSoup)) {
+			// System.out.println("I moved towards the soup");
+			// } else {
+			// tryMove(toSoup.rotateLeft());
+			// }
 			if (rc.canMove(toSoup)) {
 				rc.move(toSoup);
 			} else {
 				tryMove(randomDirection());
+			}
+			// When there is no soup around to get
+		} // else {
+			// moveTowardsHQ();
+			// }
+	}
+
+	static void buildVaporator() throws GameActionException {
+		RobotInfo[] robots = rc.senseNearbyRobots();
+		int number_of_vapes = 0;
+
+		for (RobotInfo rob : robots) {
+			if (rob.type == RobotType.VAPORATOR) {
+				number_of_vapes++;
+			}
+		}
+
+		// Builds a vape if sense less than 7 around.
+		if (number_of_vapes <= 7 && rc.getTeamSoup() >= RobotType.VAPORATOR.cost) {
+			for (Direction dir : directions) {
+				if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+					boolean didBuild = tryBuild(RobotType.VAPORATOR, dir);
+					if (didBuild) {
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	static void buildDesignSchool() throws GameActionException {
+		RobotInfo[] robots = rc.senseNearbyRobots();
+
+		for (RobotInfo bot : robots) {
+			if (bot.type == RobotType.DESIGN_SCHOOL) {
+				designSchoolBuilt = true;
+				// End building design school method early
+				return;
+			}
+		}
+
+		// Builds design school wherever it can
+		for (Direction dir : directions) {
+			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+				boolean didBuild = tryBuild(RobotType.DESIGN_SCHOOL, dir);
+				if (didBuild) {
+					break;
+				}
+			}
+		}
+	}
+
+	static void buildFulfillmentCenter() throws GameActionException {
+		RobotInfo[] robots = rc.senseNearbyRobots();
+
+		for (RobotInfo bot : robots) {
+			if (bot.type == RobotType.FULFILLMENT_CENTER) {
+				designSchoolBuilt = true;
+				// End building design school method early
+				return;
+			}
+		}
+
+		// Builds design school wherever it can
+		for (Direction dir : directions) {
+			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+				boolean didBuild = tryBuild(RobotType.FULFILLMENT_CENTER, dir);
+				if (didBuild) {
+					break;
+				}
 			}
 		}
 	}
@@ -239,168 +332,33 @@ public strictfp class RobotPlayer {
 			findHQ();
 		}
 
-		System.out.println("Carrying " + rc.getSoupCarrying() + " soup.");
+		// Need only one design school, done by whatever bot first tells.
+		if (!designSchoolBuilt) {
+			buildDesignSchool();
+		}
+
+		// Try to build vaporators first
+		// These should pretty consistently be build
+		// See build method to see condition upon which we have too many vaporators.
+		buildVaporator();
+
+		// Only really need one of these every so often.
+		if (!fulfillmentCenterBuilt) {
+			buildFulfillmentCenter();
+		}
 
 		// Runs back towards HQ when amount of soup is large.
 		if (rc.getSoupCarrying() >= (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
-			moveTowardsHQ();
 			refineAllDirections();
+			moveTowardsHQ();
 		} else {
 			// Otherwise look for more soup
 			boolean didRefine = mineAllDirections();
+			// Look for more soup when unable to mine in squares around
 			if (!didRefine) {
 				moveTowardsSoup();
 			}
 		}
-
-		/**
-		 * System.out.println(hqLocation);
-		 * 
-		 * boolean foundSoup = false; boolean hasRefined = false; int[] holder = new
-		 * int[7]; int round = rc.getRoundNum();
-		 * 
-		 * /** // turn count needs to be global, right now it is local to each miner if
-		 * (round > 2) { Transaction[] compareBlock = rc.getBlock(round - 1); // returns
-		 * a list of transactions approved last round
-		 * 
-		 * if (compareBlock.length > 0) { // if there are transactions in the block
-		 * 
-		 * System.out.println("Round: " + round); System.out.println("compareBlock: " +
-		 * compareBlock[0].getMessage());
-		 * 
-		 * for (int x = 0; x <= compareBlock.length; x++) { if
-		 * (compareBlock[x].getMessage()[6] == code) { for (int n = 0; n < 7; n++) {
-		 * currentKnowledge[n] = compareBlock[x].getMessage()[n]; } } } } }
-		 * 
-		 * 
-		 * // we need to then update current knowledge with the info from the
-		 * transaction // (only if it has the secret code in the last index of the
-		 * message)
-		 * 
-		 * //System.out.println("Im a miner:" + rc.getSoupCarrying());
-		 * //System.out.println("Turn count: " + turnCount);
-		 * 
-		 * 
-		 * 
-		 * //MapLocation rclocation = rc.getLocation();
-		 * //System.out.println(rclocation.directionTo(rc.getLocation().translate(2,
-		 * 1)));
-		 * 
-		 * if (rc.getSoupCarrying() < soupRequirement) { // If we have less soup than
-		 * required for (Direction dir : directions) { if (tryMine(dir)) { // Try to
-		 * mine in all directions foundSoup = true; // if we find soup, set foundSoup to
-		 * true } } if (foundSoup == false) { if (tryMove(randomDirection())) { //
-		 * Otherwise move randomly System.out.println("i moved"); //
-		 * System.out.println("Stack: " + moves.toString()); } } }
-		 * 
-		 * for (Direction dir : directions) { // Now try to refine in all directions if
-		 * (tryRefine(dir)) { moves.removeAllElements(); // If we can refine, empty the
-		 * moves stack hasRefined = true; System.out.println("I refined soup! " +
-		 * rc.getTeamSoup()); } }
-		 * 
-		 * 
-		 * 
-		 * purchaseBuilding(RobotType.NET_GUN, 250);
-		 * purchaseBuilding(RobotType.REFINERY, 200);
-		 **/
-
-		// The goal here is to make 1 netgun total, however without the use of the
-		// blockchain, each miner makes 1 netgun themself
-		// In order to make only 1 netgun globally, we have to update the block chain so
-		// that all robots can also reflect this change
-		// This code here looks at the current amount of soup, and the current amount of
-		// net guns, then it makes one if one doesnt exist
-		// However, I do not know how to tproperly access the block chain, and use it
-		// appropriately as when I uncomment getBlock() aboe in the HQ, it just stops
-		// the program
-
-		/**
-		 * if(rc.getTeamSoup() >= (250 + blockChainBid) && currentKnowledge[0] == 0) {
-		 * //if we have 275 soup (+25 for the cost to submit block), and 0 net guns,
-		 * currentKnowledge can be changed to <= 2 for example to make two for
-		 * (Direction dir : directions) { if(tryBuild(RobotType.NET_GUN, dir)) {
-		 * currentKnowledge[0] = currentKnowledge[0] + 1; //adding 1 to the net gun
-		 * section if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
-		 * rc.submitTransaction(currentKnowledge, blockChainBid); System.out.println("I
-		 * submitted a transaction!: " + currentKnowledge); //this adds the array to the
-		 * blockchain, I just need to figure out how to get it } } }
-		 * 
-		 * 
-		 * if(rc.getTeamSoup() >= (200 + blockChainBid) && currentKnowledge[1] == 0) {
-		 * //if we have 200 soup (+blockChainBid for the cost to submit block), and 0
-		 * refineries for (Direction dir : directions) { if(tryBuild(RobotType.REFINERY,
-		 * dir)) { currentKnowledge[1] = currentKnowledge[1] + 1; //adding 1 to the
-		 * refinery section if (rc.canSubmitTransaction(currentKnowledge,
-		 * blockChainBid)) rc.submitTransaction(currentKnowledge, blockChainBid);
-		 * System.out.println("I submitted a transaction!: " + currentKnowledge); //this
-		 * adds the array to the blockchain } } }
-		 * 
-		 * //vaporator if(rc.getTeamSoup() >= (500 + blockChainBid) &&
-		 * currentKnowledge[2] == 0) { for (Direction dir : directions) {
-		 * if(tryBuild(RobotType.VAPORATOR, dir)) { currentKnowledge[2] =
-		 * currentKnowledge[2] + 1; //adding 1 to the net vaporator if
-		 * (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
-		 * rc.submitTransaction(currentKnowledge, blockChainBid); System.out.println("I
-		 * submitted a transaction!: " + currentKnowledge); //this adds the array to the
-		 * blockchain, I just need to figure out how to get it } } }
-		 * 
-		 * // if(rc.getTeamSoup() >= (150 + blockChainBid) && currentKnowledge[3] == 0)
-		 * { //150 for school + blockChainBid for transactoin fee for (Direction dir :
-		 * directions) { if(tryBuild(RobotType.DESIGN_SCHOOL, dir)) {
-		 * currentKnowledge[3] = currentKnowledge[3] + 1; //adding 1 to the design
-		 * school section if (rc.canSubmitTransaction(currentKnowledge, blockChainBid))
-		 * rc.submitTransaction(currentKnowledge, blockChainBid); System.out.println("I
-		 * submitted a transaction!: " + currentKnowledge); //this adds the array to the
-		 * blockchain } } }
-		 * 
-		 * if(rc.getTeamSoup() >= (150 + blockChainBid) && currentKnowledge[4] == 0) {
-		 * for (Direction dir : directions) { if(tryBuild(RobotType.FULFILLMENT_CENTER,
-		 * dir)) { currentKnowledge[4] = currentKnowledge[4] + 1; //adding 1 to the
-		 * fulfilmnent center section if (rc.canSubmitTransaction(currentKnowledge,
-		 * blockChainBid)) rc.submitTransaction(currentKnowledge, blockChainBid);
-		 * System.out.println("I submitted a transaction!: " + currentKnowledge); //this
-		 * adds the array to the blockchain, I just need to figure out how to get it } }
-		 * }
-		 * 
-		 * 
-		 * 
-		 * /**if(rc.getSoupCarrying() >= soupRequirement) { if(moves.empty()) {
-		 * System.out.println("Im at the HQ!!!!!"); for (Direction dir : directions) if
-		 * (tryRefine(dir)) { System.out.println("I refined soup! " + rc.getTeamSoup());
-		 * } } else { Direction previous_move = moves.pop();
-		 * 
-		 * 
-		 * Direction.NORTH, Direction.NORTHEAST, Direction.EAST, Direction.SOUTHEAST,
-		 * Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST
-		 * 
-		 * if(previous_move == Direction.NORTH) { tryMove(Direction.SOUTH); }
-		 * if(previous_move == Direction.SOUTH) { tryMove(Direction.NORTH); }
-		 * if(previous_move == Direction.EAST) { tryMove(Direction.WEST); }
-		 * if(previous_move == Direction.WEST) { tryMove(Direction.EAST); }
-		 * if(previous_move == Direction.NORTHWEST) { tryMove(Direction.SOUTHEAST); }
-		 * if(previous_move == Direction.SOUTHEAST) { tryMove(Direction.NORTHWEST); }
-		 * if(previous_move == Direction.SOUTHWEST) { tryMove(Direction.NORTHEAST); }
-		 * if(previous_move == Direction.NORTHEAST) { tryMove(Direction.SOUTHWEST); } }
-		 * }
-		 */
-
-		/**
-		 * if(foundSoup == false) { if(tryMove(randomDirection())) { for (Direction dir
-		 * : directions) if (tryRefine(dir)) { System.out.println("I deposited soup"); }
-		 * System.out.println("I moved"); System.out.println(rc.getSoupCarrying());
-		 * }else { System.out.println("Im stuck"); } }
-		 **/
-		/**
-		 * boolean foundSoup = false; for (Direction dir : directions) if (tryMine(dir))
-		 * System.out.println("I mined soup! " + rc.getSoupCarrying() + " Location: " +
-		 * rc.getLocation()); foundSoup = true; if(foundSoup) { //do nothing }else {
-		 * tryMove(randomDirection()); } ////if (tryMove(randomDirection())) // //
-		 * System.out.println("I moved!"); // tryBuild(randomSpawnedByMiner(),
-		 * randomDirection()); for (Direction dir : directions)
-		 * tryBuild(RobotType.FULFILLMENT_CENTER, dir); for (Direction dir : directions)
-		 * if (tryRefine(dir)) { //System.out.println("I refined soup! " +
-		 * rc.getTeamSoup()); }
-		 **/
 	}
 
 	static void runRefinery() throws GameActionException {
