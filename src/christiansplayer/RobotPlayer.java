@@ -1,6 +1,7 @@
 package christiansplayer;
 
 import java.util.Stack;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
 import battlecode.common.*;
@@ -11,12 +12,21 @@ public strictfp class RobotPlayer {
 	static Direction[] directions = { Direction.NORTH, Direction.NORTHEAST, Direction.EAST, Direction.SOUTHEAST,
 			Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
 
+	static final int maximumDistanceReturnToRefinery = 100;
+
 	static HashMap<MapLocation, MapLocation> visited = new HashMap<MapLocation, MapLocation>();
+
+	static ArrayList<MapLocation> refineries = new ArrayList<MapLocation>();
+	static ArrayList<MapLocation> vaporators = new ArrayList<MapLocation>();
+
 	static Random oracle = new Random();
 
 	static MapLocation hqLocation;
 	static boolean designSchoolBuilt = false;
 	static boolean fulfillmentCenterBuilt = false;
+	static boolean mustBuildRefinery = false;
+
+	static double chanceBuildMiner = 1.0;
 
 	static RobotType[] spawnedByMiner = { RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
 			RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN };
@@ -106,34 +116,32 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runHQ() throws GameActionException {
-		// tryBlockchain(gameStage);
-		// Transaction[] compareBlock = rc.getBlock(gameStage); //If I uncomment this
-		// the code does basically nothing
 
-		// Blockchain Idea:
-		// At each stage check the block chain for messages with our code "42069" at the
-		// end (secret code is subject to change)
-		// If we have a match we then compare our currentKnowledge with the new block.
-		// If there are any differences we update our currentKnowledge, and continue on
-		// normally.
-		// This way all robots should always be on the same page
-
-		// Problems:
-		// It seems as though whenever we s.getBlock the program freezes.
-
-		// System.out.println(" Compare Block: " + compareBlock);
-
-		// Number of miners will be determined by amount of soup that is close by.
-		MapLocation[] soups = rc.senseNearbySoup();
-
-		int ratio_of_miners_to_sensed_soup = (int) (soups.length * 1.5);
-
-		for (Direction dir : directions) {
-			if (minersBuilt < ratio_of_miners_to_sensed_soup && tryBuild(RobotType.MINER, dir)) {
-				minersBuilt++;
-				// System.out.println("Current Block: " + rc.getBlock());
+		if (oracle.nextInt(100) % (int) chanceBuildMiner == 0) {
+			for (Direction dir : directions) {
+				boolean didBuild = tryBuild(RobotType.MINER, dir);
+				if (didBuild) {
+					chanceBuildMiner *= 2.0f;
+					break;
+				}
 			}
 		}
+
+		/**
+		 * if(turnCount % 100 == 0) { for (Direction dir : directions) { boolean
+		 * didBuild = tryBuild(RobotType.MINER, dir); if(didBuild) { break; } } }
+		 **/
+
+		/*
+		 * // Number of miners will be determined by amount of soup that is close by.
+		 * MapLocation[] soups = rc.senseNearbySoup();
+		 * 
+		 * int ratio_of_miners_to_sensed_soup = (int) (soups.length * 1.0);
+		 * 
+		 * for (Direction dir : directions) { if (minersBuilt <
+		 * ratio_of_miners_to_sensed_soup && tryBuild(RobotType.MINER, dir)) {
+		 * minersBuilt++; // System.out.println("Current Block: " + rc.getBlock()); } }
+		 */
 	}
 
 	/*
@@ -188,12 +196,13 @@ public strictfp class RobotPlayer {
 				hqLocation = robot.getLocation();
 			}
 		}
+		refineries.add(hqLocation);
 	}
 
 	static boolean mineAllDirections() throws GameActionException {
 		// if we are carrying 75 soup or more try refining
 		boolean didRefine = false;
-		if (rc.getSoupCarrying() < (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
+		if (rc.getSoupCarrying() < (int) (RobotType.MINER.soupLimit * (3.5 / 4.0))) {
 			for (Direction dir : directions) {
 				didRefine = didRefine || tryMine(dir);
 			}
@@ -202,20 +211,45 @@ public strictfp class RobotPlayer {
 	}
 
 	static void refineAllDirections() throws GameActionException {
-		if (rc.getLocation().distanceSquaredTo(hqLocation) <= 2) {
-			for (Direction dir : directions) {
-				tryRefine(dir);
-			}
+		for(Direction dir: directions) {
+			tryRefine(dir);
 		}
+		//if (rc.getLocation().distanceSquaredTo(hqLocation) <= 2) {
+		//	for (Direction dir : directions) {
+	//			tryRefine(dir);
+		//	}
+		//}
 	}
 
 	// Finds best move that goes towards the or closest refinery
-	static void moveTowardsHQ() throws GameActionException {
-		Direction toHQ = rc.getLocation().directionTo(hqLocation);
-		if (tryMove(toHQ)) {
-			System.out.println("I moved towards the HQ");
-		} else {
-			tryMove(toHQ.rotateRight());
+	static void moveTowardsRefinery() throws GameActionException {
+		int distanceToClosestRefinery = 999;
+		MapLocation closestRefinery = null;
+		if (refineries.size() > 0) {
+			// All this does is find the closest refinery.
+			for (MapLocation refinery : refineries) {
+				int distanceToCurrentRefinery = rc.getLocation().distanceSquaredTo(refinery);
+				if (distanceToCurrentRefinery < distanceToClosestRefinery) {
+					distanceToClosestRefinery = distanceToCurrentRefinery;
+					closestRefinery = refinery;
+				}
+			}
+
+			// closestRefinery = refineries.get(oracle.nextInt(refineries.size()));
+
+			Direction toRefinery = rc.getLocation().directionTo(closestRefinery);
+
+			// Will only move to closest refinery if within squared distance of 36.
+			if (distanceToClosestRefinery < maximumDistanceReturnToRefinery) {
+				if (tryMove(toRefinery)) {
+					System.out.println("I moved towards the HQ");
+				} else if (!tryMove(toRefinery.rotateLeft())) {
+					tryMove(toRefinery.rotateRight());
+				}
+				// Otherwise just build a new one to save time
+			} else {
+				mustBuildRefinery = true;
+			}
 		}
 	}
 
@@ -253,27 +287,28 @@ public strictfp class RobotPlayer {
 				tryMove(randomDirection());
 			}
 			// When there is no soup around to get
-		} // else {
-			// moveTowardsHQ();
-			// }
+		} else {
+			tryMove(randomDirection());
+			// goOnAdventure();
+		}
 	}
 
 	static void buildVaporator() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
-		int number_of_vapes = 0;
 
-		for (RobotInfo rob : robots) {
-			if (rob.type == RobotType.VAPORATOR) {
-				number_of_vapes++;
-			}
-		}
+		//for (RobotInfo rob : robots) {
+		//	if (rob.type == RobotType.VAPORATOR) {
+		//		number_of_vapes++;
+		//	}
+		//}
 
-		// Builds a vape if sense less than 7 around.
-		if (number_of_vapes <= 7 && rc.getTeamSoup() >= RobotType.VAPORATOR.cost) {
+		// Builds a vape if sense less than 10 around.
+		if (vaporators.size() <= 10 && rc.getTeamSoup() >= RobotType.VAPORATOR.cost) {
 			for (Direction dir : directions) {
 				if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
 					boolean didBuild = tryBuild(RobotType.VAPORATOR, dir);
 					if (didBuild) {
+						vaporators.add(rc.adjacentLocation(dir));
 						break;
 					}
 				}
@@ -325,12 +360,52 @@ public strictfp class RobotPlayer {
 		}
 	}
 
+	static void buildRefinery() throws GameActionException {
+		for (Direction dir : directions) {
+			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+				boolean didBuild = tryBuild(RobotType.REFINERY, dir);
+				if (didBuild) {
+					refineries.add(rc.getLocation().add(dir));
+					tryRefine(dir);
+					break;
+				}
+			}
+		}
+	}
+
+	static void senseLocalRefineries() throws GameActionException {
+		RobotInfo[] robots = rc.senseNearbyRobots();
+
+		for (RobotInfo bot : robots) {
+			if (bot.type == RobotType.REFINERY && !refineries.contains(bot.getLocation())) {
+				refineries.add(bot.getLocation());
+			}
+		}
+	}
+	
+	static void senseLocalVaporators() throws GameActionException {
+		RobotInfo[] robots = rc.senseNearbyRobots();
+
+		for (RobotInfo bot : robots) {
+			if (bot.type == RobotType.VAPORATOR && !vaporators.contains(bot.getLocation())) {
+				vaporators.add(bot.getLocation());
+			}
+		}
+	}
+
 	static void runMiner() throws GameActionException {
+
+		System.out.println(rc.getSoupCarrying());
 
 		// find HQ in beginning
 		if (hqLocation == null) {
 			findHQ();
 		}
+
+		// Make sure we know about all refineries we want to use
+		// Also vaporators.
+		senseLocalRefineries();
+		senseLocalVaporators();
 
 		// Need only one design school, done by whatever bot first tells.
 		if (!designSchoolBuilt) {
@@ -340,17 +415,21 @@ public strictfp class RobotPlayer {
 		// Try to build vaporators first
 		// These should pretty consistently be build
 		// See build method to see condition upon which we have too many vaporators.
-		buildVaporator();
+		if(vaporators.size() < 10) {
+			buildVaporator();
+		}
 
 		// Only really need one of these every so often.
-		if (!fulfillmentCenterBuilt) {
+		// Gotta make sure building vaporators to get income before going
+		// for drones since vaporators are expensive and drones are cheap
+		if (!fulfillmentCenterBuilt && vaporators.size() > 10) {
 			buildFulfillmentCenter();
 		}
 
 		// Runs back towards HQ when amount of soup is large.
 		if (rc.getSoupCarrying() >= (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
+			moveTowardsRefinery();
 			refineAllDirections();
-			moveTowardsHQ();
 		} else {
 			// Otherwise look for more soup
 			boolean didRefine = mineAllDirections();
@@ -358,6 +437,11 @@ public strictfp class RobotPlayer {
 			if (!didRefine) {
 				moveTowardsSoup();
 			}
+		}
+
+		if (mustBuildRefinery) {
+			buildRefinery();
+			mustBuildRefinery = false;
 		}
 	}
 
@@ -394,6 +478,7 @@ public strictfp class RobotPlayer {
 				rc.pickUpUnit(robots[0].getID());
 				System.out.println("I picked up " + robots[0].getID() + "!");
 			}
+			tryMove(randomDirection());
 		} else {
 			// No close robots, so search for robots within sight radius
 			tryMove(randomDirection());
