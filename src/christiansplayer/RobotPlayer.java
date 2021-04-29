@@ -11,8 +11,10 @@ public strictfp class RobotPlayer {
 
 	static Direction[] directions = { Direction.NORTH, Direction.NORTHEAST, Direction.EAST, Direction.SOUTHEAST,
 			Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
+	static Direction[] corners = { Direction.NORTHEAST, Direction.SOUTHEAST, Direction.SOUTHWEST, Direction.NORTHWEST };
+	static Direction[] cardinals = Direction.cardinalDirections();
 
-	static final int maximumDistanceReturnToRefinery = 100;
+	static final int maximumDistanceReturnToRefinery = 36;
 
 	static HashMap<MapLocation, MapLocation> visited = new HashMap<MapLocation, MapLocation>();
 
@@ -27,8 +29,11 @@ public strictfp class RobotPlayer {
 	static boolean mustBuildRefinery = false;
 
 	static float chanceBuildMiner = 1.0f;
+	static float chanceBuildLandscaper = 1.0f;
 	static float chanceBuildDrone = 0.02f;
 	static float droneYoke = 1.5f;
+
+	static Direction depositSpot;
 
 	static RobotType[] spawnedByMiner = { RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
 			RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN };
@@ -236,6 +241,17 @@ public strictfp class RobotPlayer {
 		// tryRefine(dir);
 		// }
 		// }
+	}
+
+	static void moveTowardsHQ() throws GameActionException {
+		Direction toHQ = rc.getLocation().directionTo(hqLocation);
+		Direction[] tries = { toHQ, toHQ.rotateLeft(), toHQ.rotateRight(), toHQ.rotateLeft().rotateLeft(),
+				toHQ.rotateRight().rotateRight() };
+		for (Direction trying : tries) {
+			if (rc.canMove(trying)) {
+				rc.move(trying);
+			}
+		}
 	}
 
 	// Finds best move that goes towards the or closest refinery
@@ -464,16 +480,25 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runRefinery() throws GameActionException {
-		// System.out.println("Pollution: " + rc.sensePollution(rc.getLocation()));
+		// refineries can just chill
 	}
 
 	static void runVaporator() throws GameActionException {
-
-		// System.out.println("OH MY GOSH IM A VAPORATOR;");
+		// vaporators can just chill
 	}
 
 	static void runDesignSchool() throws GameActionException {
+		float chance = oracle.nextFloat();
 
+		if (chance <= chanceBuildLandscaper) {
+			for (Direction dir : directions) {
+				boolean didBuild = tryBuild(RobotType.LANDSCAPER, dir);
+				if (didBuild) {
+					chanceBuildLandscaper *= 0.3f;
+					break;
+				}
+			}
+		}
 	}
 
 	static void runFulfillmentCenter() throws GameActionException {
@@ -490,6 +515,7 @@ public strictfp class RobotPlayer {
 				if (didBuild) {
 					if (chanceBuildDrone < 0.5f) {
 						chanceBuildDrone *= droneYoke;
+						droneYoke = droneYoke - 0.01f;
 					}
 					break;
 				}
@@ -497,11 +523,76 @@ public strictfp class RobotPlayer {
 		}
 	}
 
+	static void digCookie() throws GameActionException {
+
+		MapLocation currentLocation = rc.getLocation();
+
+		if ((hqLocation.y + currentLocation.y) % 2 == 0 && (hqLocation.x + currentLocation.x) % 2 == 0) {
+			for (Direction dir : corners) {
+				if (!rc.getLocation().add(dir).isAdjacentTo(hqLocation)) {
+					if (rc.canDigDirt(dir)) {
+						rc.digDirt(dir);
+					}
+				}
+			}
+		} else {
+			tryMove(randomDirection());
+		}
+	}
+
+	static void tryDig() throws GameActionException {
+		for (Direction dir : directions) {
+			if (rc.canDigDirt(dir) && !rc.getLocation().add(dir).isAdjacentTo(hqLocation)) {
+				rc.digDirt(dir);
+			}
+		}
+	}
+
+	// Landscapers will try to find high ground and then terraform
 	static void runLandscaper() throws GameActionException {
+
 		// find HQ in beginning
 		if (hqLocation == null) {
 			findHQ();
 		}
+
+		tryDig();
+		digCookie();
+
+		// check out https://www.youtube.com/watch?v=YJjs7Eo6IrU
+		// this is where i used some of that guys code in his lecture
+		if (hqLocation != null) {
+			MapLocation bestPlaceToBuildWall = null;
+			int lowestSpot = 9999;
+			for (Direction dir : directions) {
+				MapLocation tileToCheck = hqLocation.add(dir);
+				if (rc.getLocation().distanceSquaredTo(tileToCheck) < 4
+						&& rc.canDepositDirt(rc.getLocation().directionTo(tileToCheck))) {
+					if (rc.senseElevation(tileToCheck) < lowestSpot) {
+						lowestSpot = rc.senseElevation(tileToCheck);
+						bestPlaceToBuildWall = tileToCheck;
+					}
+				}
+			}
+			if (Math.random() < 0.4 && bestPlaceToBuildWall != null) {
+				rc.depositDirt(rc.getLocation().directionTo(bestPlaceToBuildWall));
+			} else {
+				moveTowardsHQ();
+			}
+		}
+
+		/**
+		 * if (rc.getDirtCarrying() < 20) { digCookie(); } else { if
+		 * (rc.getLocation().isAdjacentTo(hqLocation)) { Direction towardsHQ =
+		 * rc.getLocation().directionTo(hqLocation); if(isACorner(towardsHQ)) {
+		 * depositSpot = towardsHQ.rotateLeft(); } else { depositSpot =
+		 * towardsHQ.rotateLeft().rotateLeft(); }
+		 * 
+		 * if(rc.canDepositDirt(depositSpot)) { System.out.println("Depositing at " +
+		 * depositSpot); rc.depositDirt(depositSpot); } } else { moveTowardsHQ(); } }
+		 **/
+
+		// digCookie();
 	}
 
 	static void runDeliveryDrone() throws GameActionException {
@@ -559,11 +650,15 @@ public strictfp class RobotPlayer {
 	 * @throws GameActionException
 	 */
 	static boolean tryMove(Direction dir) throws GameActionException {
-		if (rc.isReady() && rc.canMove(dir)) {
-			rc.move(dir);
-			return true;
-		} else
-			return false;
+		Direction[] tries = { dir, dir.rotateLeft(), dir.rotateRight(), dir.rotateLeft().rotateLeft(),
+				dir.rotateRight().rotateRight() };
+		for (Direction trying : tries) {
+			if (rc.isReady() && rc.canMove(dir)) {
+				rc.move(dir);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
