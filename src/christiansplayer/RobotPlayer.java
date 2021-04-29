@@ -195,13 +195,13 @@ public strictfp class RobotPlayer {
 		}
 	}
 
-	static boolean purchaseBuilding(RobotType robot, int cost) throws GameActionException {
+	static boolean purchaseBuilding(RobotType robot, int cost) throws GameActionException { //purchase building
 		if (rc.getTeamSoup() >= (cost + blockChainBid)) {
 			for (Direction dir : directions) {
-				if (tryBuild(robot, dir)) {
+				if (tryBuild(robot, dir)) { //try to build a robot in a direction
 					addToKnowledgeBase(robot);
 					if (rc.canSubmitTransaction(currentKnowledge, blockChainBid)) {
-						rc.submitTransaction(currentKnowledge, blockChainBid);
+						rc.submitTransaction(currentKnowledge, blockChainBid); //put transaction through blockchain
 						System.out.println("I submitted a transaction!: " + currentKnowledge);
 					}
 					return true;
@@ -215,7 +215,7 @@ public strictfp class RobotPlayer {
 		RobotInfo[] info = rc.senseNearbyRobots();
 		for (RobotInfo robot : info) {
 			if (robot.type == RobotType.HQ && robot.team == rc.getTeam()) {
-				hqLocation = robot.getLocation();
+				hqLocation = robot.getLocation(); //get HQ location
 			}
 		}
 		refineries.add(hqLocation);
@@ -244,12 +244,12 @@ public strictfp class RobotPlayer {
 	}
 
 	static void moveTowardsHQ() throws GameActionException {
-		Direction toHQ = rc.getLocation().directionTo(hqLocation);
+		Direction toHQ = rc.getLocation().directionTo(hqLocation); //figure out direction to HQ
 		Direction[] tries = { toHQ, toHQ.rotateLeft(), toHQ.rotateRight(), toHQ.rotateLeft().rotateLeft(),
 				toHQ.rotateRight().rotateRight() };
 		for (Direction trying : tries) {
 			if (rc.canMove(trying)) {
-				rc.move(trying);
+				rc.move(trying);//tries to move robot
 			}
 		}
 	}
@@ -384,7 +384,7 @@ public strictfp class RobotPlayer {
 
 	static void buildRefinery() throws GameActionException {
 		for (Direction dir : directions) {
-			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) { //builds a refinery where it can
 				boolean didBuild = tryBuild(RobotType.REFINERY, dir);
 				if (didBuild) {
 					refineries.add(rc.getLocation().add(dir));
@@ -397,7 +397,7 @@ public strictfp class RobotPlayer {
 
 	static void senseLocalRefineries() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
-
+		//get info about refinery
 		for (RobotInfo bot : robots) {
 			if (bot.type == RobotType.REFINERY && !refineries.contains(bot.getLocation())) {
 				refineries.add(bot.getLocation());
@@ -407,7 +407,7 @@ public strictfp class RobotPlayer {
 
 	static void senseLocalVaporators() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
-
+			//get info about vaporators
 		for (RobotInfo bot : robots) {
 			if (bot.type == RobotType.VAPORATOR && !vaporators.contains(bot.getLocation())) {
 				vaporators.add(bot.getLocation());
@@ -417,7 +417,7 @@ public strictfp class RobotPlayer {
 
 	static void senseLocalFulfillmentCenters() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
-
+		//gets info about fulfillment centers
 		for (RobotInfo bot : robots) {
 			if (bot.type == RobotType.FULFILLMENT_CENTER) {
 				fulfillmentCenterBuilt = true;
@@ -428,7 +428,7 @@ public strictfp class RobotPlayer {
 
 	static void senseLocalDesignSchools() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
-
+		//gets info about design school
 		for (RobotInfo bot : robots) {
 			if (bot.type == RobotType.DESIGN_SCHOOL) {
 				designSchoolBuilt = true;
@@ -489,7 +489,7 @@ public strictfp class RobotPlayer {
 
 	static void runDesignSchool() throws GameActionException {
 		float chance = oracle.nextFloat();
-
+		//design school produces landscapers
 		if (chance <= chanceBuildLandscaper) {
 			for (Direction dir : directions) {
 				boolean didBuild = tryBuild(RobotType.LANDSCAPER, dir);
@@ -508,7 +508,7 @@ public strictfp class RobotPlayer {
 		float chance = oracle.nextFloat();
 
 		System.out.println(chance + " : " + chanceBuildDrone);
-
+		//try to build drones
 		if (vaporators.size() >= 3 && chance <= chanceBuildDrone) {
 			for (Direction dir : directions) {
 				boolean didBuild = tryBuild(RobotType.DELIVERY_DRONE, dir);
@@ -596,7 +596,7 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runDeliveryDrone() throws GameActionException {
-		
+
 		Team enemy = rc.getTeam().opponent();
 		if (!rc.isCurrentlyHoldingUnit()) {
 			// See if there are any enemy robots within capturing range
