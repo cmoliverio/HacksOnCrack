@@ -12,8 +12,10 @@ public strictfp class RobotPlayer {
 
 	static Direction[] directions = { Direction.NORTH, Direction.NORTHEAST, Direction.EAST, Direction.SOUTHEAST,
 			Direction.SOUTH, Direction.SOUTHWEST, Direction.WEST, Direction.NORTHWEST };
+	static Direction[] corners = { Direction.NORTHEAST, Direction.SOUTHEAST, Direction.SOUTHWEST, Direction.NORTHWEST };
+	static Direction[] cardinals = Direction.cardinalDirections();
 
-	static final int maximumDistanceReturnToRefinery = 100;
+	static final int maximumDistanceReturnToRefinery = 36;
 
 	static HashMap<MapLocation, MapLocation> visited = new HashMap<MapLocation, MapLocation>();
 
@@ -28,8 +30,11 @@ public strictfp class RobotPlayer {
 	static boolean mustBuildRefinery = false;
 
 	static float chanceBuildMiner = 1.0f;
+	static float chanceBuildLandscaper = 1.0f;
 	static float chanceBuildDrone = 0.02f;
-	static float droneYoke = 1.2f;
+	static float droneYoke = 1.5f;
+
+	static Direction depositSpot;
 
 	static RobotType[] spawnedByMiner = { RobotType.REFINERY, RobotType.VAPORATOR, RobotType.DESIGN_SCHOOL,
 			RobotType.FULFILLMENT_CENTER, RobotType.NET_GUN };
@@ -239,6 +244,17 @@ public strictfp class RobotPlayer {
 		// }
 	}
 
+	static void moveTowardsHQ() throws GameActionException {
+		Direction toHQ = rc.getLocation().directionTo(hqLocation);
+		Direction[] tries = { toHQ, toHQ.rotateLeft(), toHQ.rotateRight(), toHQ.rotateLeft().rotateLeft(),
+				toHQ.rotateRight().rotateRight() };
+		for (Direction trying : tries) {
+			if (rc.canMove(trying)) {
+				rc.move(trying);
+			}
+		}
+	}
+
 	// Finds best move that goes towards the or closest refinery
 	static void moveTowardsRefinery() throws GameActionException {
 		int distanceToClosestRefinery = Integer.MAX_VALUE;
@@ -338,44 +354,30 @@ public strictfp class RobotPlayer {
 	}
 
 	static void buildDesignSchool() throws GameActionException {
-		RobotInfo[] robots = rc.senseNearbyRobots();
-
-		for (RobotInfo bot : robots) {
-			if (bot.type == RobotType.DESIGN_SCHOOL) {
-				designSchoolBuilt = true;
-				// End building design school method early
-				return;
-			}
-		}
-
-		// Builds design school wherever it can
-		for (Direction dir : directions) {
-			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
-				boolean didBuild = tryBuild(RobotType.DESIGN_SCHOOL, dir);
-				if (didBuild) {
-					break;
+		if (!designSchoolBuilt) {
+			// Builds design school wherever it can
+			for (Direction dir : directions) {
+				if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+					boolean didBuild = tryBuild(RobotType.DESIGN_SCHOOL, dir);
+					if (didBuild) {
+						designSchoolBuilt = true;
+						break;
+					}
 				}
 			}
 		}
 	}
 
 	static void buildFulfillmentCenter() throws GameActionException {
-		RobotInfo[] robots = rc.senseNearbyRobots();
-
-		for (RobotInfo bot : robots) {
-			if (bot.type == RobotType.FULFILLMENT_CENTER) {
-				designSchoolBuilt = true;
-				return;
-			}
-		}
-
-		// Builds design school wherever it can
-		for (Direction dir : directions) {
-			if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
-				boolean didBuild = tryBuild(RobotType.FULFILLMENT_CENTER, dir);
-				if (didBuild) {
-					designSchoolBuilt = true;
-					break;
+		if (!fulfillmentCenterBuilt) {
+			// Builds design school wherever it can
+			for (Direction dir : directions) {
+				if (!rc.adjacentLocation(dir).isAdjacentTo(hqLocation)) {
+					boolean didBuild = tryBuild(RobotType.FULFILLMENT_CENTER, dir);
+					if (didBuild) {
+						fulfillmentCenterBuilt = true;
+						break;
+					}
 				}
 			}
 		}
@@ -413,23 +415,25 @@ public strictfp class RobotPlayer {
 			}
 		}
 	}
-	
+
 	static void senseLocalFulfillmentCenters() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
 
 		for (RobotInfo bot : robots) {
 			if (bot.type == RobotType.FULFILLMENT_CENTER) {
 				fulfillmentCenterBuilt = true;
+				return;
 			}
 		}
 	}
-	
+
 	static void senseLocalDesignSchools() throws GameActionException {
 		RobotInfo[] robots = rc.senseNearbyRobots();
 
 		for (RobotInfo bot : robots) {
 			if (bot.type == RobotType.DESIGN_SCHOOL) {
 				designSchoolBuilt = true;
+				return;
 			}
 		}
 	}
@@ -443,35 +447,23 @@ public strictfp class RobotPlayer {
 			findHQ();
 		}
 
+		// Done so that very few design schools are built
+		if (!designSchoolBuilt) {
+			senseLocalDesignSchools();
+			buildDesignSchool();
+		}
+
+		// Done so that very few drone centers are built
+		if (!fulfillmentCenterBuilt) {
+			senseLocalFulfillmentCenters();
+			buildFulfillmentCenter();
+		}
+
 		// Make sure we know about all refineries we want to use
 		// Also vaporators.
 		senseLocalRefineries();
 		senseLocalVaporators();
-		senseLocalFulfillmentCenters();
-		senseLocalDesignSchools();
-
-		// if (mustBuildRefinery) {
-		// buildRefinery();
-		// }
-
-		// Need only one design school, done by whatever bot first tells.
-		if (!designSchoolBuilt) {
-			buildDesignSchool();
-		}
-
-		// Only really need one of these every so often.
-		// Gotta make sure building vaporators to get income before going
-		// for drones since vaporators are expensive and drones are cheap
-		if (!fulfillmentCenterBuilt) {
-			buildFulfillmentCenter();
-		}
-
-		// Try to build vaporators first
-		// These should pretty consistently be build
-		// See build method to see condition upon which we have too many vaporators.
-		if (vaporators.size() <= 7) {
-			buildVaporator();
-		}
+		buildVaporator();
 
 		// Runs back towards HQ when amount of soup is large.
 		if (rc.getSoupCarrying() >= (int) (RobotType.MINER.soupLimit * (3.0 / 4.0))) {
@@ -489,30 +481,42 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runRefinery() throws GameActionException {
-		// System.out.println("Pollution: " + rc.sensePollution(rc.getLocation()));
+		// refineries can just chill
 	}
 
 	static void runVaporator() throws GameActionException {
-
-		//System.out.println("OH MY GOSH IM A VAPORATOR;");
+		// vaporators can just chill
 	}
 
 	static void runDesignSchool() throws GameActionException {
+		float chance = oracle.nextFloat();
 
+		if (chance <= chanceBuildLandscaper) {
+			for (Direction dir : directions) {
+				boolean didBuild = tryBuild(RobotType.LANDSCAPER, dir);
+				if (didBuild) {
+					chanceBuildLandscaper *= 0.3f;
+					break;
+				}
+			}
+		}
 	}
 
 	static void runFulfillmentCenter() throws GameActionException {
-		
+
+		senseLocalVaporators();
+
 		float chance = oracle.nextFloat();
-		
+
 		System.out.println(chance + " : " + chanceBuildDrone);
 
-		if (chance <= chanceBuildDrone) {
+		if (vaporators.size() >= 3 && chance <= chanceBuildDrone) {
 			for (Direction dir : directions) {
 				boolean didBuild = tryBuild(RobotType.DELIVERY_DRONE, dir);
 				if (didBuild) {
-					if(chanceBuildDrone < 0.5f) {
+					if (chanceBuildDrone < 0.5f) {
 						chanceBuildDrone *= droneYoke;
+						droneYoke = droneYoke - 0.01f;
 					}
 					break;
 				}
@@ -520,8 +524,76 @@ public strictfp class RobotPlayer {
 		}
 	}
 
+	static void digCookie() throws GameActionException {
+
+		MapLocation currentLocation = rc.getLocation();
+
+		if ((hqLocation.y + currentLocation.y) % 2 == 0 && (hqLocation.x + currentLocation.x) % 2 == 0) {
+			for (Direction dir : corners) {
+				if (!rc.getLocation().add(dir).isAdjacentTo(hqLocation)) {
+					if (rc.canDigDirt(dir)) {
+						rc.digDirt(dir);
+					}
+				}
+			}
+		} else {
+			tryMove(randomDirection());
+		}
+	}
+
+	static void tryDig() throws GameActionException {
+		for (Direction dir : directions) {
+			if (rc.canDigDirt(dir) && !rc.getLocation().add(dir).isAdjacentTo(hqLocation)) {
+				rc.digDirt(dir);
+			}
+		}
+	}
+
+	// Landscapers will try to find high ground and then terraform
 	static void runLandscaper() throws GameActionException {
 
+		// find HQ in beginning
+		if (hqLocation == null) {
+			findHQ();
+		}
+
+		tryDig();
+		digCookie();
+
+		// check out https://www.youtube.com/watch?v=YJjs7Eo6IrU
+		// this is where i used some of that guys code in his lecture
+		if (hqLocation != null) {
+			MapLocation bestPlaceToBuildWall = null;
+			int lowestSpot = 9999;
+			for (Direction dir : directions) {
+				MapLocation tileToCheck = hqLocation.add(dir);
+				if (rc.getLocation().distanceSquaredTo(tileToCheck) < 4
+						&& rc.canDepositDirt(rc.getLocation().directionTo(tileToCheck))) {
+					if (rc.senseElevation(tileToCheck) < lowestSpot) {
+						lowestSpot = rc.senseElevation(tileToCheck);
+						bestPlaceToBuildWall = tileToCheck;
+					}
+				}
+			}
+			if (Math.random() < 0.4 && bestPlaceToBuildWall != null) {
+				rc.depositDirt(rc.getLocation().directionTo(bestPlaceToBuildWall));
+			} else {
+				moveTowardsHQ();
+			}
+		}
+
+		/**
+		 * if (rc.getDirtCarrying() < 20) { digCookie(); } else { if
+		 * (rc.getLocation().isAdjacentTo(hqLocation)) { Direction towardsHQ =
+		 * rc.getLocation().directionTo(hqLocation); if(isACorner(towardsHQ)) {
+		 * depositSpot = towardsHQ.rotateLeft(); } else { depositSpot =
+		 * towardsHQ.rotateLeft().rotateLeft(); }
+		 * 
+		 * if(rc.canDepositDirt(depositSpot)) { System.out.println("Depositing at " +
+		 * depositSpot); rc.depositDirt(depositSpot); } } else { moveTowardsHQ(); } }
+		 **/
+
+		// digCookie();
 	}
 
 	static void runDeliveryDrone() throws GameActionException {
@@ -543,6 +615,24 @@ public strictfp class RobotPlayer {
 	}
 
 	static void runNetGun() throws GameActionException {
+		Team enemy = rc.getTeam().opponent();
+		RobotInfo[] target = null;
+		RobotInfo[] nearby = rc.senseNearbyRobots(GameConstants.NET_GUN_SHOOT_RADIUS_SQUARED, enemy);
+		
+		for(RobotInfo nearbyRobot : nearby){
+			if(rc.canShootUnit(nearby.ID)){
+				target = nearbyRobot;
+				distSq = myLocation.distanceSquaredTo(target.location);
+				nearDist = myLocation.distanceSquaredTo(target.location);
+				if(nearDist < distSq){
+					target = nearbyRobot;
+					distSq = nearDist
+				}
+			}
+		}
+		if(target != null){
+			rc.shootUnit(target.ID);
+		}
 
 	}
 
@@ -579,11 +669,15 @@ public strictfp class RobotPlayer {
 	 * @throws GameActionException
 	 */
 	static boolean tryMove(Direction dir) throws GameActionException {
-		if (rc.isReady() && rc.canMove(dir)) {
-			rc.move(dir);
-			return true;
-		} else
-			return false;
+		Direction[] tries = { dir, dir.rotateLeft(), dir.rotateRight(), dir.rotateLeft().rotateLeft(),
+				dir.rotateRight().rotateRight() };
+		for (Direction trying : tries) {
+			if (rc.isReady() && rc.canMove(dir)) {
+				rc.move(dir);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
